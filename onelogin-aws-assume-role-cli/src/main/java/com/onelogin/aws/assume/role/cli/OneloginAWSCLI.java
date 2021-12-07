@@ -53,6 +53,7 @@ public class OneloginAWSCLI {
 	private static String oneloginClientID = null;
 	private static String oneloginClientSecret = null;
 	private static String oneloginRegion = "us";
+	private static Boolean useOneloginPush = false;
 
 	public static Boolean commandParser(final String[] commandLineArguments) {
 		final CommandLineParser cmd = new DefaultParser();
@@ -186,8 +187,12 @@ public class OneloginAWSCLI {
 				}
 			}
 
+			if (commandLine.hasOption("use-onelogin-push")) {
+				useOneloginPush = true;
+			}
+
 			// VALIDATIONS
-			
+
 			if (((awsAccountId != null && !awsAccountId.isEmpty()) && (awsRoleName == null || awsRoleName.isEmpty())) || ((awsRoleName != null && !awsRoleName.isEmpty()) && (awsAccountId == null || awsAccountId.isEmpty()))) {
 				System.err.println("--aws-account-id and --aws-role-name need to be set together");
 				return false;
@@ -223,13 +228,14 @@ public class OneloginAWSCLI {
 		options.addOption(null, "onelogin-client-id", true, "A valid OneLogin API client_id");
 		options.addOption(null, "onelogin-client-secret", true, "A valid OneLogin API client_secret");
 		options.addOption(null, "onelogin-region", true, "Onelogin region. us or eu  (Default value: us)");
+		options.addOption(null, "use-onelogin-push", false, "Use push notification method for Onelogin Protect.");
 
 		return options;
 	}
 
 	public static void main(String[] commandLineArguments) throws Exception {
 
-		System.out.println("\nOneLogin AWS Assume Role Tool\n");
+		System.out.println("\nOneLogin AWS Assume Role Tool (Dunamu customized ver.)\n");
 
 		if(!commandParser(commandLineArguments)){
 			return;
@@ -535,8 +541,15 @@ public class OneloginAWSCLI {
 					deviceId = deviceSelection.getID();
 					deviceIdStr = deviceId.toString();
 
-					System.out.print("Enter the OTP Token for " + deviceSelection.getType() + ": ");
-					otpToken = scanner.next();
+					// dunamu custom
+					if (deviceSelection.getType().equals("OneLogin Protect") && useOneloginPush) {
+						System.out.println("Check your phone for the Onelogin Protect notification.");
+						otpToken = null;
+					} else {
+						System.out.print("Enter the OTP Token for " + deviceSelection.getType() + ": ");
+						otpToken = scanner.next();
+					}
+
 					stateToken = mfa.getStateToken();
 					mfaVerifyInfo = new HashMap<String, String>();
 					mfaVerifyInfo.put("otpToken", otpToken);
@@ -599,6 +612,14 @@ public class OneloginAWSCLI {
 			SAMLEndpointResponse samlEndpointResponseAfterVerify = olClient.getSAMLAssertionVerifying(appId,
 				deviceIdStr, stateToken, otpToken, null);
 			mfaVerifyInfo.put("otpToken", otpToken);
+
+			while (samlEndpointResponseAfterVerify.getType().equals("pending")) {
+				samlEndpointResponseAfterVerify = olClient.getSAMLAssertionVerifying(appId,
+						deviceIdStr, stateToken, otpToken, null, true);
+
+				TimeUnit.SECONDS.sleep(1);
+			}
+
 			String samlResponse = samlEndpointResponseAfterVerify.getSAMLResponse();
 			result.put("samlResponse", samlResponse);
 			result.put("mfaVerifyInfo", mfaVerifyInfo);
