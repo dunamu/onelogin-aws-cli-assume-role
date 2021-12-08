@@ -51,7 +51,7 @@ public class OneloginAWSCLI {
 	private static String oneloginClientSecret = null;
 	private static String oneloginRegion = "us";
 	private static Boolean useOneloginPush = false;
-	private static String oneloginDeviceNumber = null;
+	private static String oneloginDeviceNumber = "0";
 
 	public static Boolean commandParser(final String[] commandLineArguments) {
 		final CommandLineParser cmd = new DefaultParser();
@@ -369,7 +369,7 @@ public class OneloginAWSCLI {
 								}
 								System.out.println("-----------------------------------------------------------------------");
 								System.out.print("Select the desired Role [0-" + (roleData.size() - 1) + "]: ");
-								roleSelection = getSelection(scanner, roleData.size());
+								roleSelection = getSelection(scanner, roleData.size(), null);
 							}
 							selectedRole = roleData.get(roleSelection);
 						} else {
@@ -479,12 +479,20 @@ public class OneloginAWSCLI {
 		}
 	}
 
-	public static Integer getSelection(Scanner scanner, int max)
+	public static Integer getSelection(Scanner scanner, int max, String defaultValue)
 	{
-		Integer selection = Integer.valueOf(scanner.next());
+		String scannedValue = scanner.nextLine();
+		if (scannedValue.isEmpty()) {
+			if (defaultValue != null) {
+				scannedValue = defaultValue;
+			} else {
+				scannedValue = "-1";
+			}
+		}
+		int selection = Integer.parseInt(scannedValue);
 		while (selection < 0 || selection >= max) {
 			System.out.println("Wrong number, add a number between 0 - " + (max - 1));
-			selection = Integer.valueOf(scanner.next());
+			selection = Integer.parseInt(scanner.next());
 		}
 		return selection;
 	}
@@ -540,14 +548,8 @@ public class OneloginAWSCLI {
 							System.out.println(" " + i + " | " + device.getType());
 						}
 						System.out.println("-----------------------------------------------------------------------");
-						if (oneloginDeviceNumber == null) {
-							System.out.print("\nSelect the desired MFA Device [0-" + (devices.size() - 1) + "]: ");
-							deviceInput = getSelection(scanner, devices.size());
-						} else {
-							System.out.println("\nAuto-selecting MFA Device from command line argument: " + oneloginDeviceNumber);
-							deviceInput = Integer.parseInt(oneloginDeviceNumber);
-							System.out.println("Auto-selected MFA Device [" + devices.get(deviceInput).getType() + "]");
-						}
+						System.out.print("\nSelect the desired MFA Device [0-" + (devices.size() - 1) + "] (default: " + oneloginDeviceNumber + "): ");
+						deviceInput = getSelection(scanner, devices.size(), oneloginDeviceNumber);
 					}
 
 					System.out.println();
@@ -559,7 +561,6 @@ public class OneloginAWSCLI {
 					boolean usePush = useOneloginPush;
 					if (deviceSelection.getType().equals("OneLogin Protect")) {
 						if (!usePush) {
-							scanner.nextLine();
 							System.out.print("Enter the OTP Token for OneLogin Protect or just press enter to use push notification method: ");
 							otpToken = scanner.nextLine();
 
