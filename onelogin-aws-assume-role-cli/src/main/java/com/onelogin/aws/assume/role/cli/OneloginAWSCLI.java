@@ -1,12 +1,9 @@
 package com.onelogin.aws.assume.role.cli;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -54,6 +51,7 @@ public class OneloginAWSCLI {
 	private static String oneloginClientSecret = null;
 	private static String oneloginRegion = "us";
 	private static Boolean useOneloginPush = false;
+	private static String oneloginDeviceNumber = null;
 
 	public static Boolean commandParser(final String[] commandLineArguments) {
 		final CommandLineParser cmd = new DefaultParser();
@@ -191,6 +189,13 @@ public class OneloginAWSCLI {
 				useOneloginPush = true;
 			}
 
+			if (commandLine.hasOption("device-number")) {
+				value = commandLine.getOptionValue("device-number");
+				if (value != null && !value.isEmpty()) {
+					oneloginDeviceNumber = value;
+				}
+			}
+
 			// VALIDATIONS
 
 			if (((awsAccountId != null && !awsAccountId.isEmpty()) && (awsRoleName == null || awsRoleName.isEmpty())) || ((awsRoleName != null && !awsRoleName.isEmpty()) && (awsAccountId == null || awsAccountId.isEmpty()))) {
@@ -229,6 +234,7 @@ public class OneloginAWSCLI {
 		options.addOption(null, "onelogin-client-secret", true, "A valid OneLogin API client_secret");
 		options.addOption(null, "onelogin-region", true, "Onelogin region. us or eu  (Default value: us)");
 		options.addOption(null, "use-onelogin-push", false, "Use push notification method for Onelogin Protect.");
+		options.addOption(null, "device-number", true, "OneLogin 2fa device number.");
 
 		return options;
 	}
@@ -486,7 +492,7 @@ public class OneloginAWSCLI {
 	public static Map<String, Object> getSamlResponse(Client olClient, Scanner scanner, String oneloginUsernameOrEmail,
 			String oneloginPassword, String appId, String oneloginDomain, Map<String, String> mfaVerifyInfo, String ip)
 			throws Exception {
-		String otpToken, stateToken;
+		String otpToken = null, stateToken;
 		Device deviceSelection;
 		Long deviceId;
 		String deviceIdStr = null;
@@ -525,6 +531,7 @@ public class OneloginAWSCLI {
 					System.out.println("-----------------------------------------------------------------------");
 					Device device;
 					Integer deviceInput;
+
 					if (devices.size() == 1) {
 						deviceInput = 0;
 					} else {
@@ -533,18 +540,38 @@ public class OneloginAWSCLI {
 							System.out.println(" " + i + " | " + device.getType());
 						}
 						System.out.println("-----------------------------------------------------------------------");
-						System.out.print("\nSelect the desired MFA Device [0-" + (devices.size() - 1) + "]: ");
-						deviceInput = getSelection(scanner, devices.size());
+						if (oneloginDeviceNumber == null) {
+							System.out.print("\nSelect the desired MFA Device [0-" + (devices.size() - 1) + "]: ");
+							deviceInput = getSelection(scanner, devices.size());
+						} else {
+							System.out.println("\nAuto-selecting MFA Device from command line argument: " + oneloginDeviceNumber);
+							deviceInput = Integer.parseInt(oneloginDeviceNumber);
+							System.out.println("Auto-selected MFA Device [" + devices.get(deviceInput).getType() + "]");
+						}
 					}
+
+					System.out.println();
 
 					deviceSelection = devices.get(deviceInput);
 					deviceId = deviceSelection.getID();
 					deviceIdStr = deviceId.toString();
 
-					// dunamu custom
-					if (deviceSelection.getType().equals("OneLogin Protect") && useOneloginPush) {
-						System.out.println("Check your phone for the Onelogin Protect notification.");
-						otpToken = null;
+					boolean usePush = useOneloginPush;
+					if (deviceSelection.getType().equals("OneLogin Protect")) {
+						if (!usePush) {
+							System.out.print("Enter the OTP Token for OneLogin Protect or type `push` for push notification method: ");
+							otpToken = scanner.next();
+
+							if (otpToken.equals("push")) {
+								usePush = true;
+								System.out.println();
+							}
+						}
+
+						if (usePush) {
+							System.out.println("Check your phone for the OneLogin Protect notification.");
+							otpToken = null;
+						}
 					} else {
 						System.out.print("Enter the OTP Token for " + deviceSelection.getType() + ": ");
 						otpToken = scanner.next();
