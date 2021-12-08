@@ -559,10 +559,11 @@ public class OneloginAWSCLI {
 					boolean usePush = useOneloginPush;
 					if (deviceSelection.getType().equals("OneLogin Protect")) {
 						if (!usePush) {
-							System.out.print("Enter the OTP Token for OneLogin Protect or type `push` for push notification method: ");
-							otpToken = scanner.next();
+							scanner.nextLine();
+							System.out.print("Enter the OTP Token for OneLogin Protect or just press enter to use push notification method: ");
+							otpToken = scanner.nextLine();
 
-							if (otpToken.equals("push")) {
+							if (otpToken.isEmpty()) {
 								usePush = true;
 								System.out.println();
 							}
